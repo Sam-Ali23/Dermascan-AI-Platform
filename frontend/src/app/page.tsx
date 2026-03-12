@@ -43,38 +43,26 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
   const diagnosisColor = useMemo(() => {
     if (!result) return "text-slate-900";
     return result.label === "Benign" ? "text-emerald-700" : "text-red-700";
   }, [result]);
-
-  const riskLevel = useMemo(() => {
-    if (!result) return null;
-
-    if (result.label === "Malignant") return "High Risk";
-    if (result.confidence >= 0.9) return "Low Risk";
-    return "Review Suggested";
-  }, [result]);
-
-  const riskClasses = useMemo(() => {
-    if (!riskLevel) return "";
-
-    if (riskLevel === "High Risk") {
-      return "border-red-200 bg-red-50 text-red-700";
-    }
-
-    if (riskLevel === "Review Suggested") {
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    }
-
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }, [riskLevel]);
 
   const handleFileChange = (selectedFile: File | null) => {
     setResult(null);
     setError("");
 
     if (!selectedFile) {
+      setFile(null);
+      setPreviewUrl(null);
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(selectedFile.type)) {
+      setError("Please upload a valid JPG, JPEG, or PNG image.");
       setFile(null);
       setPreviewUrl(null);
       return;
@@ -92,6 +80,11 @@ export default function HomePage() {
   };
 
   const handleAnalyze = async () => {
+    if (!apiUrl) {
+      setError("API URL is missing. Please check frontend/.env.local");
+      return;
+    }
+
     if (!file) {
       setError("Please select an image first.");
       return;
@@ -105,15 +98,27 @@ export default function HomePage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("http://127.0.0.1:8000/predict", {
+      const response = await fetch(`${apiUrl}/predict`, {
         method: "POST",
         body: formData,
       });
 
-      const data = await response.json();
+      let data: unknown = null;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("Server returned an invalid response.");
+      }
 
       if (!response.ok) {
-        throw new Error(data.detail || "Failed to analyze image.");
+        const message =
+          typeof data === "object" &&
+          data !== null &&
+          "detail" in data &&
+          typeof (data as { detail?: unknown }).detail === "string"
+            ? (data as { detail: string }).detail
+            : "Failed to analyze image.";
+        throw new Error(message);
       }
 
       setResult(data as PredictionResponse);
@@ -132,28 +137,16 @@ export default function HomePage() {
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-6 py-10">
         <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="mb-2 text-sm font-semibold uppercase tracking-[0.25em] text-blue-700">
-                Dermascan AI
-              </p>
-              <h1 className="text-4xl font-bold tracking-tight">
-                AI skin lesion analysis platform
-              </h1>
-              <p className="mt-3 max-w-3xl text-slate-600">
-                Upload a dermoscopic image and get AI-based lesion classification,
-                confidence score, lesion area ratio, and visual mask overlays.
-              </p>
-            </div>
-
-            {result && riskLevel && (
-              <div
-                className={`inline-flex rounded-2xl border px-4 py-3 text-sm font-semibold ${riskClasses}`}
-              >
-                {riskLevel}
-              </div>
-            )}
-          </div>
+          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.25em] text-blue-700">
+            Dermascan AI
+          </p>
+          <h1 className="text-4xl font-bold tracking-tight">
+            AI skin lesion analysis platform
+          </h1>
+          <p className="mt-3 max-w-3xl text-slate-600">
+            Upload a dermoscopic image and get AI-based lesion classification,
+            confidence score, lesion area ratio, and visual mask overlays.
+          </p>
         </section>
 
         <div className="grid gap-8 xl:grid-cols-[420px_minmax(0,1fr)]">
@@ -187,11 +180,18 @@ export default function HomePage() {
 
               <button
                 onClick={handleClear}
-                className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 transition hover:bg-slate-100"
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Clear
               </button>
             </div>
+
+            {loading && (
+              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                The model is analyzing the image. Please wait...
+              </div>
+            )}
 
             {error && (
               <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -217,10 +217,7 @@ export default function HomePage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() =>
-                        downloadBase64Image(
-                          result.mask_base64,
-                          "dermascan-mask.png"
-                        )
+                        downloadBase64Image(result.mask_base64, "dermascan-mask.png")
                       }
                       className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
                     >
@@ -240,9 +237,7 @@ export default function HomePage() {
                     </button>
 
                     <button
-                      onClick={() =>
-                        downloadJson(result, "dermascan-result.json")
-                      }
+                      onClick={() => downloadJson(result, "dermascan-result.json")}
                       className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
                     >
                       Download JSON
