@@ -138,7 +138,7 @@ export default function HomePage() {
       <div className="mx-auto max-w-7xl px-6 py-10">
         <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <p className="mb-2 text-sm font-semibold uppercase tracking-[0.25em] text-blue-700">
-            Dermascan AI
+            DERMAVISION AI
           </p>
           <h1 className="text-4xl font-bold tracking-tight">
             AI skin lesion analysis platform

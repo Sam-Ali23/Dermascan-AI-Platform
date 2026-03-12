@@ -9,7 +9,7 @@ from app.model_loader import ModelLoader
 from app.inference import run_inference
 
 app = FastAPI(
-    title="Dermascan AI Model Service",
+    title="DERMAVISION AI Model Service",
     version="1.0.0",
     description="AI inference API for dermoscopic skin lesion analysis",
 )
