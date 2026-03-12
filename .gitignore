@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Node
+frontend/node_modules
+frontend/.next
+
+# Python
+model_service/venv
+model_service/__pycache__
+model_service/app/__pycache__
+*.pyc
+
+# Env
+.env
+.env.local
